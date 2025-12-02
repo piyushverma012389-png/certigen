@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CertiGen - Final Fixed</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <script src="https://cdn.rawgit.com/davidshimjs/qrcodejs/gh-pages/qrcode.min.js"></script>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&family=Great+Vibes&family=Cinzel:wght@600&family=Space+Grotesk:wght@500&family=Playfair+Display:wght@700&family=Montserrat:wght@800&family=Alex+Brush&family=Pinyon+Script&family=Oswald:wght@500&display=swap" rel="stylesheet">
+
+    <style>
+        :root { --primary: #4f46e5; --glass: rgba(255, 255, 255, 0.85); }
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Outfit', sans-serif; margin: 0; padding: 0;
+            background-color: #0f172a; height: 100vh; overflow: hidden;
+            display: flex; justify-content: center; align-items: center;
+        }
+
+        /* --- 🎬 INTRO SCREEN --- */
+        #intro-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #312e81 100%);
+            z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center;
+            transition: transform 0.8s cubic-bezier(0.77, 0, 0.175, 1);
+        }
+        
+        /* Intro Logo Animation */
+        .intro-svg-logo {
+            width: 300px;
+            height: auto;
+            opacity: 0; animation: fadeIn 1s forwards 0.2s;
+            filter: drop-shadow(0 0 25px rgba(79, 70, 229, 0.5));
+        }
+
+        .loader-bar {
+            width: 0; height: 4px; background: linear-gradient(90deg, #4f46e5, #ec4899);
+            border-radius: 2px; animation: loadLine 1.5s ease-in-out forwards;
+            margin-top: 20px;
+        }
+        .intro-hidden { transform: translateY(-100%); }
+        @keyframes loadLine { 0% { width: 0; } 100% { width: 220px; } }
+        @keyframes fadeIn { 0% { opacity: 0; transform: translateY(20px); } 100% { opacity: 1; transform: translateY(0); } }
+
+        /* --- BACKGROUND --- */
+        #app-container {
+            width: 100%; height: 100%; padding: 30px; display: flex; gap: 30px;
+            background: linear-gradient(135deg, #1e1b4b 0%, #312e81 40%, #4c1d95 70%, #831843 100%);
+            background-image: linear-gradient(135deg, #1e1b4b 0%, #312e81 40%, #4c1d95 70%, #831843 100%), url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E");
+            background-blend-mode: soft-light;
+        }
+
+        /* --- SIDEBAR --- */
+        .controls {
+            width: 380px; min-width: 380px;
+            background: var(--glass); backdrop-filter: blur(25px);
+            border: 1px solid rgba(255, 255, 255, 0.5); border-radius: 20px; padding: 25px;
+            display: flex; flex-direction: column; gap: 15px;
+            overflow-y: auto; box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+        }
+
+        /* Sidebar Logo Style */
+        .sidebar-svg-logo {
+            height: 40px;
+            width: auto;
+        }
+        
+        .card { background: rgba(255, 255, 255, 0.6); border-radius: 12px; padding: 15px; border: 1px solid rgba(255,255,255,0.4); transition: 0.2s; }
+        .card:hover { background: white; }
+        .label-head { font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 1px; display: block; margin-bottom: 8px; }
+        
+        .file-box { border: 2px dashed #cbd5e1; border-radius: 8px; padding: 10px; text-align: center; background: rgba(255,255,255,0.5); cursor: pointer; }
+        .file-box:hover { border-color: var(--primary); background: #fff; }
+
+        textarea { width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px; font-family: 'Outfit'; font-size: 13px; background: rgba(255,255,255,0.8); }
+        select { width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #e2e8f0; font-family: 'Outfit'; background: white; margin-bottom: 10px; }
+        input[type="range"] { width: 100%; accent-color: var(--primary); cursor: pointer; height: 4px; display: block; margin-top: 5px;}
+
+        /* Signature List */
+        .sig-item { 
+            display: flex; justify-content: space-between; align-items: center; 
+            background: #fff; padding: 8px; border-radius: 6px; margin-bottom: 5px; border: 1px solid #e2e8f0; font-size: 12px;
+        }
+        .sig-item:hover { border-color: var(--primary); }
+        .remove-sig { color: #ef4444; cursor: pointer; font-weight: bold; padding: 2px 6px; }
+
+        .actions { display: flex; gap: 10px; margin-top: auto; }
+        .action-btn { flex: 1; padding: 14px; border: none; border-radius: 10px; color: white; font-weight: 600; cursor: pointer; transition: 0.3s; box-shadow: 0 8px 15px rgba(0,0,0,0.1); }
+        .btn-main { background: linear-gradient(135deg, #4f46e5 0%, #818cf8 100%); }
+        .btn-sec { background: linear-gradient(135deg, #1e1b4b 0%, #3730a3 100%); }
+        .action-btn:hover { transform: translateY(-2px); opacity: 0.9; }
+
+        /* Preview */
+        .canvas-wrapper { 
+            flex: 1; background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(10px); 
+            border-radius: 20px; display: flex; justify-content: center; align-items: center; 
+            padding: 20px; border: 1px solid rgba(255,255,255,0.2); 
+            position: relative; overflow: hidden; user-select: none;
+        }
+        canvas { 
+            max-width: 95%; max-height: 95%; border-radius: 8px; 
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3); background: white; 
+            cursor: default;
+        }
+        
+        #status-pill {
+            position: absolute; bottom: 20px; background: rgba(255,255,255,0.95); color: #1e293b;
+            padding: 6px 14px; border-radius: 30px; font-size: 12px; font-weight: 600;
+            opacity: 0; transition: 0.3s; box-shadow: 0 4px 10px rgba(0,0,0,0.1); pointer-events: none;
+        }
+        .show-status { opacity: 1 !important; bottom: 30px !important; }
+        #qr-hidden { display: none; }
+    </style>
+</head>
+<body>
+
+    <div id="intro-screen">
+        <svg class="intro-svg-logo" viewBox="0 0 320 80" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:1" />
+                    <stop offset="50%" style="stop-color:#8b5cf6;stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:#ec4899;stop-opacity:1" />
+                </linearGradient>
+            </defs>
+            <path d="M60 40c0-16.5-13.5-30-30-30C13.5 10 0 23.5 0 40s13.5 30 30 30c8 0 15.5-3.5 21-9" 
+                  fill="none" stroke="url(#logoGradient)" stroke-width="12" stroke-linecap="round" transform="translate(10,0)"/>
+            <text x="85" y="55" font-family="'Outfit', sans-serif" font-weight="800" font-size="48" fill="white">CertiGen</text>
+        </svg>
+        <div class="loader-bar"></div>
+    </div>
+
+    <div id="app-container">
+        <div class="controls">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                    <svg class="sidebar-svg-logo" viewBox="0 0 320 80" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="sidebarGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:1" />
+                                <stop offset="50%" style="stop-color:#8b5cf6;stop-opacity:1" />
+                                <stop offset="100%" style="stop-color:#ec4899;stop-opacity:1" />
+                            </linearGradient>
+                        </defs>
+                        <path d="M60 40c0-16.5-13.5-30-30-30C13.5 10 0 23.5 0 40s13.5 30 30 30c8 0 15.5-3.5 21-9" 
+                              fill="none" stroke="url(#sidebarGradient)" stroke-width="12" stroke-linecap="round" transform="translate(10,0)"/>
+                        <text x="85" y="55" font-family="'Outfit', sans-serif" font-weight="800" font-size="48" fill="#1e293b">CertiGen</text>
+                    </svg>
+                    <div style="font-size:11px; color:#64748b; margin-top:5px; margin-left:10px;">Interactive Drag & Drop</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <span class="label-head">01. Assets</span>
+                <div class="file-box" onclick="document.getElementById('templateInput').click()">
+                    <span style="font-size:12px; color:#64748b;">📂 Upload Certificate</span>
+                    <input type="file" id="templateInput" accept="image/*" style="display:none;" onchange="loadTemplate()">
+                </div>
+                
+                <div style="margin-top:10px; padding-top:10px; border-top:1px dashed #cbd5e1;">
+                    <span class="label-head">Signatures (Multiple)</span>
+                    <div id="sig-list">
+                        <div style="font-size:11px; color:#94a3b8; font-style:italic;">No signatures added.</div>
+                    </div>
+                    <button onclick="document.getElementById('signInput').click()" 
+                            style="width:100%; margin-top:5px; padding:8px; border:1px solid #4f46e5; color:#4f46e5; background:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:11px;">
+                        + Add Signature
+                    </button>
+                    <input type="file" id="signInput" accept="image/*" style="display:none;" onchange="addSignature()">
+                </div>
+            </div>
+
+            <div class="card">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+                    <span class="label-head" style="margin:0;">02. Names List</span>
+                    <input type="file" id="csvInput" accept=".csv" onchange="handleCSV()" style="width:75px; font-size:9px;">
+                </div>
+                <textarea id="nameList" rows="2" placeholder="Piyush&#10;Rahul" onchange="draw()"></textarea>
+            </div>
+
+            <div class="card" id="dynamicControls">
+                <span class="label-head" style="color:#4f46e5;">✨ Active Item Settings</span>
+                <div id="no-selection" style="font-size:12px; color:#64748b;">Select an item on canvas to edit</div>
+                
+                <div id="name-controls" style="display:none;">
+                    <label style="font-size:10px; font-weight:bold; color:#64748b;">FONT STYLE</label>
+                    <select id="fontStyle" onchange="updateSelected('font')" style="width:100%;">
+                        <option value="'Montserrat', sans-serif">Modern Sans</option>
+                        <option value="'Great Vibes', cursive">Elegant Script</option>
+                        <option value="'Cinzel', serif">Royal Serif</option>
+                        <option value="'Oswald', sans-serif">Bold Headline</option>
+                        <option value="'Alex Brush', cursive">Alex Brush</option>
+                        <option value="'Pinyon Script', cursive">Pinyon Script</option>
+                        <option value="'Dancing Script', cursive">Dancing Script</option>
+                        <option value="'Satisfy', cursive">Satisfy</option>
+                        <option value="'Playfair Display', serif">Playfair Display</option>
+                        <option value="'Space Grotesk', sans-serif">Space Grotesk</option>
+                    </select>
+                    <div style="display:flex; gap:10px; margin-top:5px; align-items:center;">
+                        <input type="color" id="nameColor" value="#1e293b" style="height:35px; width:35px; border:none; padding:0; cursor:pointer;" oninput="updateSelected('color')">
+                        <div style="flex:1;">
+                            <label style="font-size:10px; font-weight:bold; color:#64748b;">SIZE</label>
+                            <input type="range" id="nameSize" min="20" max="300" value="60" oninput="updateSelected('size')">
+                        </div>
+                    </div>
+                </div>
+
+                <div id="qr-controls" style="display:none;">
+                    <input type="text" id="qrLink" value="https://google.com/search?q=" placeholder="Link..." 
+                           style="width:100%; padding:5px; border-radius:4px; border:1px solid #ddd; font-size:11px; margin-bottom:5px;" oninput="draw()">
+                    <input type="range" id="qrSize" min="50" max="400" value="100" oninput="updateSelected('size')">
+                    <div style="margin-top:5px; font-size:11px;">
+                        <input type="checkbox" id="qrToggle" checked onchange="draw()"> Show QR
+                    </div>
+                </div>
+
+                <div id="sig-controls" style="display:none;">
+                    <label style="font-size:11px;">Size</label>
+                    <input type="range" id="sigSizeSlider" min="20" max="500" value="150" oninput="updateSelected('size')">
+                </div>
+            </div>
+
+            <div class="actions">
+                <button class="action-btn btn-main" onclick="downloadBatch('pdf')">Export PDF</button>
+                <button class="action-btn btn-sec" onclick="downloadBatch('zip')">Export ZIP</button>
+            </div>
+        </div>
+
+        <div class="canvas-wrapper">
+            <canvas id="canvas"></canvas>
+            <div id="status-pill">Drag items to position</div>
+        </div>
+
+    </div>
+    <div id="qr-hidden"></div>
+
+<script>
+    // --- INTRO ---
+    window.addEventListener('load', () => {
+        setTimeout(() => {
+            document.getElementById('intro-screen').classList.add('intro-hidden');
+            document.getElementById('app-container').classList.add('app-visible');
+            initCanvas();
+        }, 1500);
+    });
+
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    
+    let templateImg = new Image();
+    let isTemplateLoaded = false;
+    
+    let objects = {
+        name: { x: 400, y: 300, size: 60, color: '#1e293b', font: "'Montserrat', sans-serif", type: 'name' },
+        qr: { x: 50, y: 500, size: 100, type: 'qr' },
+        signatures: [] 
+    };
+
+    let selection = null; 
+    let isDragging = false;
+    let dragStart = { x: 0, y: 0 };
+
+    function initCanvas() {
+        canvas.width = 800; canvas.height = 600;
+        ctx.fillStyle = "white"; ctx.fillRect(0,0,800,600);
+        ctx.strokeStyle = "#e2e8f0"; ctx.lineWidth=3; ctx.strokeRect(20,20,760,560);
+        ctx.fillStyle = "#94a3b8"; ctx.font = "600 20px Outfit"; ctx.textAlign = "center";
+        ctx.fillText("Upload Design (.jpg/.png)", 400, 300);
+        templateImg.src = canvas.toDataURL();
+        templateImg.onload = () => { isTemplateLoaded = true; draw(); }; 
+    }
+
+    // --- DRAG LOGIC ---
+    canvas.addEventListener('mousedown', (e) => {
+        const mouse = getMousePos(e);
+        
+        // Check Signatures
+        for (let i = objects.signatures.length - 1; i >= 0; i--) {
+            let s = objects.signatures[i];
+            if (mouse.x > s.x && mouse.x < s.x + s.width && mouse.y > s.y && mouse.y < s.y + s.height) {
+                selection = { type: 'sig', index: i };
+                startDrag(mouse);
+                showControls('sig');
+                return;
+            }
+        }
+
+        // Check QR
+        if (document.getElementById('qrToggle').checked) {
+            let q = objects.qr;
+            if (mouse.x > q.x && mouse.x < q.x + q.size && mouse.y > q.y && mouse.y < q.y + q.size) {
+                selection = { type: 'qr' };
+                startDrag(mouse);
+                showControls('qr');
+                return;
+            }
+        }
+
+        // Check Name
+        let n = objects.name;
+        ctx.font = `bold ${n.size}px ${n.font}`;
+        let width = ctx.measureText("Recipient Name").width;
+        let height = n.size;
+        if (mouse.x > n.x - width/2 && mouse.x < n.x + width/2 && mouse.y > n.y - height && mouse.y < n.y + height/4) {
+            selection = { type: 'name' };
+            startDrag(mouse);
+            showControls('name');
+            return;
+        }
+
+        selection = null;
+        document.getElementById('no-selection').style.display = 'block';
+        ['name-controls','qr-controls','sig-controls'].forEach(id => document.getElementById(id).style.display = 'none');
+        draw();
+    });
+
+    canvas.addEventListener('mousemove', (e) => {
+        const mouse = getMousePos(e);
+        let hit = false;
+        
+        let n = objects.name;
+        ctx.font = `bold ${n.size}px ${n.font}`;
+        let nw = ctx.measureText("Recipient Name").width;
+        if(mouse.x > n.x - nw/2 && mouse.x < n.x + nw/2 && mouse.y > n.y - n.size && mouse.y < n.y + n.size/4) hit = true;
+        
+        if (document.getElementById('qrToggle').checked) {
+            let q = objects.qr;
+            if(mouse.x > q.x && mouse.x < q.x + q.size && mouse.y > q.y && mouse.y < q.y + q.size) hit = true;
+        }
+        
+        objects.signatures.forEach(s => {
+            if(mouse.x > s.x && mouse.x < s.x + s.width && mouse.y > s.y && mouse.y < s.y + s.height) hit = true;
+        });
+        canvas.style.cursor = hit ? 'move' : 'default';
+
+        if (isDragging && selection) {
+            let dx = mouse.x - dragStart.x;
+            let dy = mouse.y - dragStart.y;
+
+            if (selection.type === 'name') { objects.name.x += dx; objects.name.y += dy; }
+            else if (selection.type === 'qr') { objects.qr.x += dx; objects.qr.y += dy; }
+            else if (selection.type === 'sig') { objects.signatures[selection.index].x += dx; objects.signatures[selection.index].y += dy; }
+
+            dragStart = mouse;
+            draw();
+        }
+    });
+
+    canvas.addEventListener('mouseup', () => { isDragging = false; });
+
+    function getMousePos(evt) {
+        var rect = canvas.getBoundingClientRect();
+        var scaleX = canvas.width / rect.width;
+        var scaleY = canvas.height / rect.height;
+        return { x: (evt.clientX - rect.left) * scaleX, y: (evt.clientY - rect.top) * scaleY };
+    }
+
+    function startDrag(mouse) { isDragging = true; dragStart = mouse; }
+
+    // --- UI CONTROLS ---
+    function showControls(type) {
+        document.getElementById('no-selection').style.display = 'none';
+        ['name-controls','qr-controls','sig-controls'].forEach(id => document.getElementById(id).style.display = 'none');
+        document.getElementById(type + '-controls').style.display = 'block';
+
+        if (type === 'name') {
+            document.getElementById('nameSize').value = objects.name.size;
+            document.getElementById('nameColor').value = objects.name.color;
+            document.getElementById('fontStyle').value = objects.name.font;
+        } else if (type === 'qr') {
+            document.getElementById('qrSize').value = objects.qr.size;
+        } else if (type === 'sig') {
+            document.getElementById('sigSizeSlider').value = objects.signatures[selection.index].width;
+        }
+    }
+
+    function updateSelected(prop) {
+        if (!selection) return;
+        if (selection.type === 'name') {
+            if(prop === 'size') objects.name.size = parseInt(document.getElementById('nameSize').value);
+            if(prop === 'color') objects.name.color = document.getElementById('nameColor').value;
+            if(prop === 'font') objects.name.font = document.getElementById('fontStyle').value;
+        } else if (selection.type === 'qr') {
+            if(prop === 'size') objects.qr.size = parseInt(document.getElementById('qrSize').value);
+        } else if (selection.type === 'sig') {
+            if(prop === 'size') {
+                let s = objects.signatures[selection.index];
+                let newW = parseInt(document.getElementById('sigSizeSlider').value);
+                let ratio = s.height / s.width;
+                s.width = newW;
+                s.height = newW * ratio;
+            }
+        }
+        draw();
+    }
+
+    // --- FILE HANDLING ---
+    function loadTemplate() {
+        const file = document.getElementById('templateInput').files[0];
+        if (file) {
+            templateImg.src = URL.createObjectURL(file);
+            templateImg.onload = () => {
+                isTemplateLoaded = true;
+                canvas.width = templateImg.width;
+                canvas.height = templateImg.height;
+                objects.name.x = canvas.width / 2; objects.name.y = canvas.height / 2;
+                draw();
+                showStatus("Design Loaded");
+            };
+        }
+    }
+
+    function addSignature() {
+        const file = document.getElementById('signInput').files[0];
+        if (file) {
+            let img = new Image();
+            img.src = URL.createObjectURL(file);
+            img.onload = () => {
+                objects.signatures.push({
+                    img: img, x: canvas.width / 2, y: canvas.height / 2,
+                    width: 150, height: 150 * (img.height / img.width), id: Date.now()
+                });
+                renderSigList();
+                draw();
+                showStatus("Signature Added");
+            };
+        }
+        document.getElementById('signInput').value = ""; 
+    }
+
+    function deleteSig(index) {
+        objects.signatures.splice(index, 1);
+        renderSigList();
+        selection = null;
+        document.getElementById('no-selection').style.display = 'block';
+        document.getElementById('sig-controls').style.display = 'none';
+        draw();
+    }
+
+    function renderSigList() {
+        const list = document.getElementById('sig-list');
+        list.innerHTML = "";
+        objects.signatures.forEach((sig, index) => {
+            list.innerHTML += `
+                <div class="sig-item">
+                    <span>Signature #${index + 1}</span>
+                    <span class="remove-sig" onclick="deleteSig(${index})">×</span>
+                </div>
+            `;
+        });
+        if (objects.signatures.length === 0) list.innerHTML = `<div style="font-size:11px; color:#94a3b8;">No signatures added.</div>`;
+    }
+
+    function handleCSV() {
+        const file = document.getElementById('csvInput').files[0];
+        if (file) {
+            Papa.parse(file, {
+                complete: function(results) {
+                    const names = results.data.map(r => r[0]).filter(n => n && n.trim() !== "");
+                    document.getElementById('nameList').value = names.join('\n');
+                    draw();
+                    showStatus("Names Imported");
+                }
+            });
+        }
+    }
+
+    // --- DRAW LOGIC ---
+    function generateQR(text) {
+        return new Promise(resolve => {
+            const container = document.getElementById('qr-hidden');
+            container.innerHTML = "";
+            new QRCode(container, { text: text, width: 256, height: 256 });
+            setTimeout(() => {
+                const el = container.querySelector('canvas') || container.querySelector('img');
+                resolve(el ? (el.toDataURL ? el.toDataURL() : el.src) : null);
+            }, 50);
+        });
+    }
+
+    async function draw(currentName = null, qrSrc = null) {
+        if (!isTemplateLoaded) return;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(templateImg, 0, 0);
+
+        // Name
+        const names = document.getElementById('nameList').value.split('\n');
+        const nameText = currentName || names[0] || "Recipient Name";
+        
+        let n = objects.name;
+        ctx.font = `bold ${n.size}px ${n.font}`;
+        ctx.fillStyle = n.color;
+        ctx.textAlign = "center";
+        ctx.fillText(nameText, n.x, n.y);
+        
+        if (selection && selection.type === 'name') {
+            ctx.strokeStyle = "#4f46e5"; ctx.lineWidth = 1;
+            let w = ctx.measureText(nameText).width;
+            ctx.strokeRect(n.x - w/2 - 5, n.y - n.size, w + 10, n.size + 10);
+        }
+
+        // Signatures
+        objects.signatures.forEach((s, i) => {
+            ctx.drawImage(s.img, s.x, s.y, s.width, s.height);
+            if (selection && selection.type === 'sig' && selection.index === i) {
+                ctx.strokeStyle = "#4f46e5"; ctx.lineWidth = 2;
+                ctx.strokeRect(s.x, s.y, s.width, s.height);
+            }
+        });
+
+        // QR
+        if (document.getElementById('qrToggle').checked) {
+            let q = objects.qr;
+            let finalQrSrc = qrSrc;
+            
+            if(!qrSrc && !currentName) {
+                 const baseUrl = document.getElementById('qrLink').value;
+                 finalQrSrc = await generateQR(baseUrl + encodeURIComponent(nameText));
+            }
+
+            if (finalQrSrc) {
+                const img = new Image();
+                img.onload = () => {
+                    ctx.drawImage(img, q.x, q.y, q.size, q.size);
+                    if (selection && selection.type === 'qr') {
+                        ctx.strokeStyle = "#4f46e5"; ctx.lineWidth = 2;
+                        ctx.strokeRect(q.x, q.y, q.size, q.size);
+                    }
+                };
+                img.src = finalQrSrc;
+            }
+        }
+    }
+
+    async function downloadBatch(type) {
+        const names = document.getElementById('nameList').value.split('\n').filter(n => n.trim() !== "");
+        if(names.length === 0) { alert("Add names!"); return; }
+
+        const baseUrl = document.getElementById('qrLink').value;
+        const btn = document.querySelector(type === 'pdf' ? '.btn-main' : '.btn-sec');
+        btn.innerText = "Processing..."; btn.disabled = true;
+
+        let zip, pdfDoc;
+        if(type === 'zip') zip = new JSZip();
+        if(type === 'pdf') {
+            const { jsPDF } = window.jspdf;
+            pdfDoc = new jsPDF({ orientation: templateImg.width > templateImg.height ? 'l' : 'p', unit: 'px', format: [templateImg.width, templateImg.height] });
+        }
+
+        const isQrOn = document.getElementById('qrToggle').checked;
+
+        for(let i=0; i<names.length; i++) {
+            const qrUrl = isQrOn ? await generateQR(baseUrl + encodeURIComponent(names[i])) : null;
+            ctx.clearRect(0,0,canvas.width,canvas.height);
+            ctx.drawImage(templateImg,0,0);
+            
+            let n = objects.name;
+            ctx.font = `bold ${n.size}px ${n.font}`;
+            ctx.fillStyle = n.color; ctx.textAlign = "center";
+            ctx.fillText(names[i], n.x, n.y);
+            
+            objects.signatures.forEach(s => ctx.drawImage(s.img, s.x, s.y, s.width, s.height));
+            
+            if(qrUrl) {
+                const qImg = new Image();
+                qImg.src = qrUrl;
+                await new Promise(r => qImg.onload = r);
+                ctx.drawImage(qImg, objects.qr.x, objects.qr.y, objects.qr.size, objects.qr.size);
+            }
+
+            const imgData = canvas.toDataURL('image/png');
+            if(type === 'zip') zip.file(`${names[i]}.png`, imgData.split(',')[1], {base64: true});
+            else {
+                if(i > 0) pdfDoc.addPage([templateImg.width, templateImg.height]);
+                pdfDoc.addImage(imgData, 'PNG', 0, 0, templateImg.width, templateImg.height);
+            }
+        }
+
+        if(type === 'zip') {
+            const content = await zip.generateAsync({type:"blob"});
+            saveAs(content, "Certificates.zip");
+        } else {
+            pdfDoc.save("Certificates.pdf");
+        }
+        btn.innerText = type === 'pdf' ? "Export PDF" : "Export ZIP"; btn.disabled = false;
+        draw();
+    }
+
+    function showStatus(msg) {
+        document.getElementById('status-pill').innerText = msg;
+        document.getElementById('status-pill').classList.add('show-status');
+        setTimeout(() => document.getElementById('status-pill').classList.remove('show-status'), 2000);
+    }
+</script>
+
+</body>
+</html>
